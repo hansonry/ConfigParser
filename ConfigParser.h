@@ -30,7 +30,8 @@ enum CPTokenType_E
    e_CPTT_StructEnd,
    e_CPTT_ArrayBegin,
    e_CPTT_ArrayEnd,
-   e_CPTT_String
+   e_CPTT_String,
+   e_CPTT_EndOfBuffer
 };
 
 struct CPToken_S
