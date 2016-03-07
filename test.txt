@@ -1,14 +1,10 @@
-{
-   a : 5, 
-   b:"hio"
-   z:[1,2,3,4,5],
-   aa:{b:d},
-   // test
-here:5,
-   sweep : /* blkajdslkasjd 
-   
-   sfddsf
-   */ 6,
-   hey:jude,how:[are, you],
 
+
+{
+   name  : bob,
+   job   : supervizor,
+   tasks : [add, subract],
+   other : {happyness: small, paycheck: large},
 }
+
+
