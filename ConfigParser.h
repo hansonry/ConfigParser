@@ -38,6 +38,8 @@ struct ConfigParser_S
 };
 
 void ConfigParser_Init(ConfigParser_T * parser);
+void ConfigParser_Destory(ConfigParser_T * parser);
+
 void ConfigParser_LoadFile(ConfigParser_T * parser, const char * filename);
 
 

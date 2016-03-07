@@ -14,6 +14,24 @@ void ConfigParser_Init(ConfigParser_T * parser)
    parser->token_root  = NULL;
 }
 
+void ConfigParser_Destory(ConfigParser_T * parser)
+{
+   CPToken_T * loop, * temp;
+   loop = parser->token_root;
+   while(loop != NULL)
+   {
+      temp = loop;
+      loop = loop->next;
+      free(temp);
+   }
+   parser->token_root = NULL;
+
+   if(parser->buffer != NULL)
+   {
+      free(parser->buffer);
+   }
+}
+
 
 void ConfigParser_LoadFile(ConfigParser_T * parser, const char * filename)
 {
@@ -277,7 +295,6 @@ static void ConfigParser_Tokenize(ConfigParser_T * parser)
          index = ConfigParser_ReadString(parser, &token, index);
          token.type = e_CPTT_String;         
          add_token_flag = 1;
-         printf("ELSE\n");
       }
 
 
