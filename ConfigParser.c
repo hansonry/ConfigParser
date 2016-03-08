@@ -407,9 +407,9 @@ static CPToken_T * ConfigParser_ParseObject(ConfigParser_T * parser, CPToken_T *
       done = 0;
       seperator_satified = 1;
       out_token = NULL;
+      token = token->next;
       while(done == 0 && token->next != NULL)
       {
-         token = token->next;
          if(token->type == e_CPTT_StructEnd)
          {
             done = 1;
@@ -426,22 +426,21 @@ static CPToken_T * ConfigParser_ParseObject(ConfigParser_T * parser, CPToken_T *
 
             token = ConfigParser_ParseObjectPair(parser, token, &object->pair_list[object->size]);
             object->size ++;
-            if(token == NULL);
+            if(token == NULL)
             {
                done = 1;
             }
 
             // Check for comma
-            token = token->next;
             if(token->type == e_CPTT_Seperator)
             {
                seperator_satified = 1;
+               token = token->next;
             }
             else
             {
                seperator_satified = 0;
             }
-
          }
          else
          {
@@ -477,10 +476,9 @@ static CPToken_T * ConfigParser_ParseArray(ConfigParser_T * parser, CPToken_T * 
       done = 0;
       seperator_satified = 1;
       out_token = NULL;
+      token = token->next;
       while(done == 0 && token->next != NULL)
       {
-         token = token->next;
-
          if(token->type == e_CPTT_ArrayEnd)
          {
             done = 1;
@@ -503,9 +501,9 @@ static CPToken_T * ConfigParser_ParseArray(ConfigParser_T * parser, CPToken_T * 
             }
 
             // Check for comma
-            token = token->next;
             if(token != NULL && token->type == e_CPTT_Seperator)
             {
+               token = token->next;
                seperator_satified = 1;
             }
             else
@@ -586,13 +584,13 @@ static void ConfigParser_ParseBuffer(ConfigParser_T * parser)
 {
    CPToken_T * loop;
    ConfigParser_Tokenize(parser);
-   ConfigParser_ParseTokens(parser);
 
    loop = parser->token_root;
    while(loop != NULL)
    {
-      //printf("T: \"%.*s\"\n", (int)loop->size, loop->start);
+      //printf("T: %p  \"%.*s\"\n", loop, (int)loop->size, loop->start);
       loop = loop->next;
    }
+   ConfigParser_ParseTokens(parser);
 }
 
