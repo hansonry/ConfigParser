@@ -88,9 +88,10 @@ struct ConfigParser_S
 void ConfigParser_Init(ConfigParser_T * parser);
 void ConfigParser_Destory(ConfigParser_T * parser);
 
-void ConfigParser_LoadFile(ConfigParser_T * parser, const char * filename);
+// Returns 1 if everything worked
+int ConfigParser_LoadFile(ConfigParser_T * parser, const char * filename);
 
-
+int ConfigParser_GetIndexOfKey(const CPValue_T * value, const char * key);
 
 
 #endif // __CONFIGPARSER_H__

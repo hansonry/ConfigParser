@@ -33,6 +33,7 @@ static void PrintValue(CPValue_T * value)
 
 int main(int args, char * argc[])
 {
+   int index;
    ConfigParser_T parser;
    ConfigParser_Init(&parser);
    ConfigParser_LoadFile(&parser, "test.txt");
@@ -40,6 +41,8 @@ int main(int args, char * argc[])
 
    PrintValue(parser.root);
 
+   index = ConfigParser_GetIndexOfKey(parser.root, "other");
+   printf("Index: %i\n", index);
 
    ConfigParser_Destory(&parser);
    printf("End\n");

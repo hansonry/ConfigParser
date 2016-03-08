@@ -3,8 +3,9 @@
 {
    name  : bob,
    job   : supervizor,
-   tasks : [add, subract],
-   other : {happyness: small, paycheck: large},
+   tasks : [ add, subract ],
+   other : { happyness: small, paycheck: large },
+   lsdl  : "This is a test sdfsdlk"
 }
 
 
