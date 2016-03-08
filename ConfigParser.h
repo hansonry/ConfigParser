@@ -5,9 +5,9 @@
 typedef struct ConfigParser_S ConfigParser_T;
 
 
-typedef struct CPToken_S CPToken_T;
-typedef enum CPTokenType_E CPTokenType_T;
-typedef enum CPValueType_E CPValueType_T;
+typedef struct CPToken_S       CPToken_T;
+typedef enum CPTokenType_E     CPTokenType_T;
+typedef enum CPValueType_E     CPValueType_T;
 
 typedef struct CPValue_S       CPValue_T;
 typedef struct CPValueString_S CPValueString_T;
