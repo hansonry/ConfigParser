@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "ConfigParser.h"
-
+#include "Scanner.h"
 
 static void PrintValue(CPValue_T * value)
 {
@@ -31,7 +31,20 @@ static void PrintValue(CPValue_T * value)
    }
 }
 
-int main(int args, char * argc[])
+static void Scanner_Driver(void)
+{
+   Scanner_T scanner;
+   ScannerChar_T schar;
+   Scanner_InitFromFile(&scanner, "test.txt");
+   while(Scanner_GetNextChar(&scanner, &schar))
+   {
+      printf("l: %i, c: %i, char: %c\n", schar.line, schar.col, schar.c);
+   }
+   
+   Scanner_Destroy(&scanner);
+}
+
+static void ConfigParser_Driver(void)
 {
    int index;
    ConfigParser_T parser;
@@ -45,6 +58,11 @@ int main(int args, char * argc[])
    printf("Index: %i\n", index);
 
    ConfigParser_Destory(&parser);
+}
+
+int main(int args, char * argc[])
+{
+   Scanner_Driver();
    printf("End\n");
    return 0;
 }
