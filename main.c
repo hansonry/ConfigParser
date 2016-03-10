@@ -2,6 +2,7 @@
 #include "ConfigParser.h"
 #include "Scanner.h"
 #include "ScannerWindow.h"
+#include "StringHashTable.h"
 
 static void PrintValue(CPValue_T * value)
 {
@@ -131,6 +132,21 @@ static void ScannerWindow_Driver(void)
    Scanner_Destroy(&scanner);
 }
 
+static void StringHashTable_Driver(void)
+{
+   StringHashTable_T table;
+   StringHashTable_Init(&table, 0);
+   printf("%p\n", StringHashTable_Put(&table, "aaa"));
+   printf("%p\n", StringHashTable_Put(&table, "aba"));
+   printf("%p\n", StringHashTable_Put(&table, "aaa"));
+   printf("%p\n", StringHashTable_Put(&table, "aba"));
+   printf("%p\n", StringHashTable_Put(&table, "aa!"));
+   printf("%p\n", StringHashTable_Put(&table, "aa!"));
+   printf("%p\n", StringHashTable_Check(&table, "aa!"));
+   printf("%p\n", StringHashTable_Check(&table, "azz"));
+   StringHashTable_Destroy(&table);
+}
+
 static void ConfigParser_Driver(void)
 {
    int index;
@@ -150,7 +166,8 @@ static void ConfigParser_Driver(void)
 int main(int args, char * argc[])
 {
    //Scanner_Driver();
-   ScannerWindow_Driver();
+   //ScannerWindow_Driver();
+   StringHashTable_Driver();
    printf("End\n");
    return 0;
 }
