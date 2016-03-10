@@ -32,7 +32,7 @@ static void ScannerWindow_GrowToSize(ScannerWindow_T * window, size_t size)
    // Check the buffer size
    if(size > window->list_size)
    {
-      window->list_size += GROW_BY;
+      window->list_size = size + GROW_BY;
       window->list = realloc(window->list, sizeof(ScannerChar_T) * window->list_size);
    }
 
@@ -45,14 +45,14 @@ static void ScannerWindow_GrowToSize(ScannerWindow_T * window, size_t size)
 
 }
 
-int    ScannerWindow_GetIndex(ScannerWindow_T * window, size_t index, ScannerChar_T * schar)
+int    ScannerWindow_GetIndex(ScannerWindow_T * window, ScannerChar_T * schar, size_t index)
 {
    int result;
    ScannerWindow_GrowToSize(window, index + 1);
    if(index < window->list_count)
    {
       result = 1;
-      memcpy(schar, window->list[index], sizeof(ScannerChar_T));
+      memcpy(schar, &window->list[index], sizeof(ScannerChar_T));
    }
    else
    {
@@ -61,21 +61,30 @@ int    ScannerWindow_GetIndex(ScannerWindow_T * window, size_t index, ScannerCha
    return result;
 }
 
-void ScannerWindow_ReleaseFirst(ScannerWindow_T * window, size_t count)
+void ScannerWindow_Release(ScannerWindow_T * window, size_t count)
 {
-   size_t i, diff;
+   size_t i, to_release, to_move;
    // Make sure we have the characters to release
    ScannerWindow_GrowToSize(window, count);
 
-
-   for(i = 0; i < count; i++)
+   if(count <= window->list_count)
    {
-      memcpy(&window->list[i], 
-             &window->list[i + count], 
-             sizeof(ScannerChar_T));
+      to_release = count;
+   }
+   else
+   {
+      to_release = window->list_count;
    }
 
-   window->list_count -= count;
+   to_move = window->list_count - to_release;
+
+   for(i = 0; i < to_move; i++)
+   {
+      memcpy(&window->list[i], 
+             &window->list[i + to_release], 
+             sizeof(ScannerChar_T));
+   }
+   window->list_count -= to_release;
 
 }
 
