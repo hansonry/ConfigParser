@@ -1,6 +1,9 @@
 #ifndef __CONFIGPARSER_H__
 #define __CONFIGPARSER_H__
 #include <stddef.h>
+#include "ScannerWindow.h"
+#include "StringHashTable.h"
+
 
 typedef struct ConfigParser_S ConfigParser_T;
 
@@ -79,17 +82,16 @@ struct CPValue_S
 
 struct ConfigParser_S
 {
-   char * buffer;
-   size_t buffer_size;
-   CPToken_T * token_root;
+   StringHashTable_T strings;
+   ScannerWindow_T window;
+   CPToken_T * token_list;
+   size_t      token_count;
+   size_t      token_size;
    CPValue_T * root;
 };
 
-void ConfigParser_Init(ConfigParser_T * parser);
+void ConfigParser_Init(ConfigParser_T * parser, Scanner_T * scanner);
 void ConfigParser_Destory(ConfigParser_T * parser);
-
-// Returns 1 if everything worked
-int ConfigParser_LoadFile(ConfigParser_T * parser, const char * filename);
 
 int ConfigParser_GetIndexOfKey(const CPValue_T * value, const char * key);
 

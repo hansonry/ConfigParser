@@ -8,12 +8,17 @@
 
 static int ConfigParser_ParseBuffer(ConfigParser_T * parser);
 
-void ConfigParser_Init(ConfigParser_T * parser)
+void ConfigParser_Init(ConfigParser_T * parser, Scanner_T * scanner)
 {
-   parser->buffer      = NULL;
-   parser->buffer_size = 0;
-   parser->token_root  = NULL;
+   size_t new_size;
+   new_size = GROW_BY;
+   parser->token_size  = new_size;
+   parser->token_count = 0;
+   parser->token_list  = malloc(sizeof(CPToken_T) * new_size);
    parser->root        = NULL;
+
+   ScannerWindow_Init(&parser->window, scanner);
+   StringHashTable_Init(&parser->strings, 0);
 }
 
 static void ConfigParser_DestroyValue(ConfigParser_T * parser, CPValue_T * value)
@@ -42,50 +47,22 @@ static void ConfigParser_DestroyValue(ConfigParser_T * parser, CPValue_T * value
 
 void ConfigParser_Destory(ConfigParser_T * parser)
 {
-   CPToken_T * loop, * temp;
-
-   
    ConfigParser_DestroyValue(parser, parser->root);
    parser->root = NULL;
 
-   loop = parser->token_root;
-   while(loop != NULL)
-   {
-      temp = loop;
-      loop = loop->next;
-      free(temp);
-   }
-   parser->token_root = NULL;
+   free(parser->token_list);
+   parser->token_list = NULL;
 
-   if(parser->buffer != NULL)
-   {
-      free(parser->buffer);
-   }
+   StringHashTable_Destroy(&parser->strings);
+   ScannerWindow_Destroy(&parser->window);
+
 }
 
 
-int ConfigParser_LoadFile(ConfigParser_T * parser, const char * filename)
+int ConfigParser_LoadFile(ConfigParser_T * parser, Scanner_T * scanner)
 {
-   FILE * file;
-   int result;
-
-   file = fopen(filename, "rb");
-   if(file == NULL)
-   {
-      printf("Error: ConfigParser_LoadFile: Cannot open file \"%s\"\n", filename);
-      result = 0;
-   }
-   else
-   {
-      fseek(file, 0, SEEK_END);
-      parser->buffer_size = ftell(file);
-      parser->buffer = malloc(sizeof(char) * parser->buffer_size);
-      fseek(file, 0, SEEK_SET);
-      fread(parser->buffer, parser->buffer_size, 1, file);
-      fclose(file);
-      result = ConfigParser_ParseBuffer(parser);
-   }
-   return result;
+   ScannerWindow_Init(&parser->window, scanner);
+   return 1;
 }
 
 int ConfigParser_GetIndexOfKey(const CPValue_T * value, const char * key)
