@@ -39,10 +39,10 @@ enum CPTokenType_E
 
 struct CPToken_S
 {
-   const char * start;
-   size_t size;
+   const char * str;
    CPTokenType_T type;
-   CPToken_T * next;
+   int line;
+   int col;
 };
 
 struct CPValueString_S

@@ -19,6 +19,8 @@ void ConfigParser_Init(ConfigParser_T * parser, Scanner_T * scanner)
 
    ScannerWindow_Init(&parser->window, scanner);
    StringHashTable_Init(&parser->strings, 0);
+
+   ConfigParser_ParseBuffer(parser);
 }
 
 static void ConfigParser_DestroyValue(ConfigParser_T * parser, CPValue_T * value)
@@ -78,13 +80,10 @@ int ConfigParser_GetIndexOfKey(const CPValue_T * value, const char * key)
       for(i = 0; i < (int)value->data.object.size; i++)
       {
          pair = &value->data.object.pair_list[i];
-         if(pair->key_token->size == str_size)
+         if(strcmp(pair->key_token->str, key) == 0)
          {
-            if(memcmp(pair->key_token->start, key, str_size) == 0)
-            {
-               result = i;
-               break;
-            }
+            result = i;
+            break;
          }
       }
    }
@@ -101,340 +100,334 @@ int ConfigParser_GetIndexOfKey(const CPValue_T * value, const char * key)
 
 static int ConfigParser_CheckToken(ConfigParser_T * parser, 
                                    CPToken_T * token, 
-                                   size_t index, 
                                    const char * str)
 {
-   size_t str_size;
-   size_t i;  
    int result;
+   ScannerChar_T schar;
+   size_t size;
 
-   str_size = strlen(str);
-
-   if(index + str_size <= parser->buffer_size)
+   if(ScannerWindow_Match(&parser->window, 0, str))
    {
+      (void)ScannerWindow_GetIndex(&parser->window, &schar, 0);
+      token->line = schar.line;
+      token->col  = schar.col;
+      token->str  = StringHashTable_Put(&parser->strings, str);
+      size = strlen(str);
+      ScannerWindow_Release(&parser->window, size);
       result = 1;
-      for(i = 0; i < str_size; i++)
-      {
-         if(parser->buffer[index + i] != str[i])
-         {
-            result = 0;
-            break;
-         }
-      }
-
-      if(result == 1)
-      {
-         token->size  = str_size;
-         token->start = &parser->buffer[index];
-      }
    }
    else
    {
       result = 0;
    }
+
    return result;
 }
 
-static size_t ConfigParser_FindEndCommentBlock(ConfigParser_T * parser,
-                                               size_t index)
+static void ConfigParser_EatBlockComment(ConfigParser_T * parser)
 {
-   size_t result;
-   int state;
-   char c;
-   CPToken_T token;
-   result = index;
-   state = 0;
-   result = parser->buffer_size;
-   while(index < parser->buffer_size && state < 1)
+   ScannerChar_T schar;
+   int done;
+   size_t size;
+   done = 0;
+   while(ScannerWindow_GetIndex(&parser->window, &schar, 0) && done == 0)
    {
-      
-      if(ConfigParser_CheckToken(parser, &token, index, "*/"))
+      if(ScannerWindow_Match(&parser->window, 0, "*/"))
       {
-         state = 1;
-         result = index + token.size;
+         done = 1;      
       }
-
-      index++;
+      else
+      {
+         ScannerWindow_Release(&parser->window, 1);
+      }
    }
 
+   size = ScannerWindow_GetWindowSize(&parser->window);
+   ScannerWindow_Release(&parser->window, size);
 
-   return result;
 }
 
-static size_t ConfigParser_FindStartOfNextLine(ConfigParser_T * parser,
-                                               size_t index)
+static void ConfigParser_EatLineComment(ConfigParser_T * parser)
 {
-   size_t result;
-   int state;
-   char c;
+   ScannerChar_T schar;
+   int done, state;
    state = 0;
-   result = parser->buffer_size;
-   while(index < parser->buffer_size && state < 2)
+   done = 0;
+   while(ScannerWindow_GetIndex(&parser->window, &schar, 0) && done == 0)
    {
-      c = parser->buffer[index];
       if(state == 0)
       {
-         if(IS_CHAR_NEWLINE(c))
+         if(IS_CHAR_NEWLINE(schar.c))
          {
             state = 1;
          }
+         ScannerWindow_Release(&parser->window, 1);
       }
       else if(state == 1)
       {
-         if(!IS_CHAR_NEWLINE(c))
+         if(!IS_CHAR_NEWLINE(schar.c))
          {
             state = 2;
-            result = index;
+            done  = 1;
+         }
+         else
+         {
+            ScannerWindow_Release(&parser->window, 1);
          }
       }
-
-      index++;
    }
-
-   return result;
 }
 
-static size_t ConfigParser_ReadString(ConfigParser_T * parser, 
-                                      CPToken_T * token, 
-                                      size_t index)
+static void ConfigParser_ReadString(ConfigParser_T * parser, 
+                                    CPToken_T * token)
 {
+   char * str;
+   ScannerChar_T schar;
+   size_t index, start, size;
    int quote, done;
-   char c;
-   size_t result;
 
-   result = parser->buffer_size;
 
-   c = parser->buffer[index];
-   if(c == '"')
+   ScannerWindow_GetIndex(&parser->window, &schar, 0);
+   token->line = schar.line;
+   token->col  = schar.col;
+
+   if(schar.c == '"')
    {
       quote = 1;
-      index ++;
+      start = 1;
    }
    else
    {
       quote = 0;
+      start = 0;
    }
 
-   token->start = &parser->buffer[index];
-   token->size = 0;
-
+   
+   index = start;
+   size = 0;
    done = 0;
-   while(index < parser->buffer_size && done == 0)
+   while(ScannerWindow_GetIndex(&parser->window, &schar, index) && done == 0)
    {
-      c = parser->buffer[index];
       if(quote == 1)
       {
-         if(c == '"')
+         if(schar.c == '"')
          {
             done = 1;
-            result = index + 1;
          }
          else
          {
-            token->size ++;
+            size ++;
          }
       }
-      else if(!(IS_CHAR_WHITESPACE(c) || c == ',' || c == ':' || c == '}' || c == ']'))
+      else if(!(IS_CHAR_WHITESPACE(schar.c) || schar.c == ',' || schar.c == ':' || schar.c == '}' || schar.c == ']'))
       {
-         token->size ++;
+         size ++;
       }
       else
       {
          done = 1;
-         result = index;
       }
       
       index ++;
    }
+   // Create String
+   str = malloc(sizeof(char) * (size + 1));
+   ScannerWindow_CopyString(&parser->window, start, str, size);
+   str[size] = '\0';
 
-   return result;
+   token->str = StringHashTable_Put(&parser->strings, str);
+   free(str);
+
+   ScannerWindow_Release(&parser->window, start + size + quote);
+  
+
 }
 
-static size_t ConfigParser_EatWhiteSpace(ConfigParser_T * parser, size_t index)
+static void ConfigParser_EatWhiteSpace(ConfigParser_T * parser)
 {
-   char c;
+   ScannerChar_T schar;
    int done;
-   size_t result;
-
    done = 0;
-   result = parser->buffer_size;
-   while(index < parser->buffer_size && done == 0)
+   while(ScannerWindow_GetIndex(&parser->window, &schar, 0) && done == 0)
    {
-      c = parser->buffer[index];
-      if(!IS_CHAR_WHITESPACE(c))
+      if(!IS_CHAR_WHITESPACE(schar.c))
       {
-         done = 1;
-         result = index;
+         done = 1;      
       }
-      index ++;
+      else
+      {
+         ScannerWindow_Release(&parser->window, 1);
+      }
    }
-   return result;
+}
+
+static void ConfigParser_AddToken(ConfigParser_T * parser, CPToken_T * token)
+{
+   size_t new_size;
+   if(parser->token_count >= parser->token_size)
+   {
+      new_size = parser->token_count + GROW_BY;
+      parser->token_list = realloc(parser->token_list, sizeof(CPToken_T) * new_size);
+      parser->token_size = new_size;
+   }
+   memcpy(&parser->token_list[parser->token_count], 
+          token, sizeof(CPToken_T));
+   parser->token_count ++;
 }
 
 static void ConfigParser_Tokenize(ConfigParser_T * parser)
 {
-   size_t index;
-   CPToken_T token, *last_token, *new_token;
-   int add_token_flag;
+   ScannerChar_T schar;
+   CPToken_T token;
 
-   last_token = NULL;
-   token.next = NULL;
-   index = ConfigParser_EatWhiteSpace(parser, 0);
-   while(index < parser->buffer_size)
+   ConfigParser_EatWhiteSpace(parser);
+   while(ScannerWindow_GetIndex(&parser->window, &schar, 0))
    {
       //printf("Looking at: %c\n", parser->buffer[index]);
 
-      if(ConfigParser_CheckToken(parser, &token, index, ":"))
+      if(ConfigParser_CheckToken(parser, &token, "//"))
       {
-         token.type = e_CPTT_Setter;
-         index += token.size;
-         add_token_flag = 1;
+         ConfigParser_EatLineComment(parser);
       }
-      else if(ConfigParser_CheckToken(parser, &token, index, ","))
+      else if(ConfigParser_CheckToken(parser, &token, "/*"))
       {
-         token.type = e_CPTT_Seperator;
-         index += token.size;
-         add_token_flag = 1;
-      }
-      else if(ConfigParser_CheckToken(parser, &token, index, "{"))
-      {
-         token.type = e_CPTT_StructBegin;
-         index += token.size;
-         add_token_flag = 1;
-      }
-      else if(ConfigParser_CheckToken(parser, &token, index, "}"))
-      {
-         token.type = e_CPTT_StructEnd;
-         index += token.size;
-         add_token_flag = 1;
-      }
-      else if(ConfigParser_CheckToken(parser, &token, index, "["))
-      {
-         token.type = e_CPTT_ArrayBegin;
-         index += token.size;
-         add_token_flag = 1;
-      }
-      else if(ConfigParser_CheckToken(parser, &token, index, "]"))
-      {
-         token.type = e_CPTT_ArrayEnd;
-         index += token.size;
-         add_token_flag = 1;
-      }
-      else if(ConfigParser_CheckToken(parser, &token, index, "//"))
-      {
-         index = ConfigParser_FindStartOfNextLine(parser, index + token.size);
-         add_token_flag = 0;
-      }
-      else if(ConfigParser_CheckToken(parser, &token, index, "/*"))
-      {
-         index = ConfigParser_FindEndCommentBlock(parser, index + token.size);
-         add_token_flag = 0;
+         ConfigParser_EatBlockComment(parser);
       }
       else
       {
-         index = ConfigParser_ReadString(parser, &token, index);
-         token.type = e_CPTT_String;         
-         add_token_flag = 1;
-      }
-
-
-      if(add_token_flag == 1)
-      {
-         new_token = malloc(sizeof(CPToken_T));
-         memcpy(new_token, &token, sizeof(CPToken_T));
-         new_token->next = NULL;
-         if(last_token == NULL)
+         if(ConfigParser_CheckToken(parser, &token, ":"))
          {
-            parser->token_root = new_token;
+            token.type = e_CPTT_Setter;
+         }
+         else if(ConfigParser_CheckToken(parser, &token, ","))
+         {
+            token.type = e_CPTT_Seperator;
+         }
+         else if(ConfigParser_CheckToken(parser, &token, "{"))
+         {
+            token.type = e_CPTT_StructBegin;
+         }
+         else if(ConfigParser_CheckToken(parser, &token, "}"))
+         {
+            token.type = e_CPTT_StructEnd;
+         }
+         else if(ConfigParser_CheckToken(parser, &token, "["))
+         {
+            token.type = e_CPTT_ArrayBegin;
+         }
+         else if(ConfigParser_CheckToken(parser, &token, "]"))
+         {
+            token.type = e_CPTT_ArrayEnd;
          }
          else
          {
-            last_token->next = new_token;
+            ConfigParser_ReadString(parser, &token);
+            token.type = e_CPTT_String;         
          }
-         last_token = new_token;
 
+         ConfigParser_AddToken(parser, &token);
       }
 
-      index = ConfigParser_EatWhiteSpace(parser, index);
+      ConfigParser_EatWhiteSpace(parser);
    }
 
-   new_token = malloc(sizeof(CPToken_T));
-   new_token->type = e_CPTT_EndOfBuffer;
-   new_token->start = NULL;
-   new_token->size  = 0;
-   new_token->next  = NULL;
+   token.type = e_CPTT_EndOfBuffer;
+   token.str  = NULL;
+   token.line = 0;
+   token.col  = 0;
+   ConfigParser_AddToken(parser, &token);
+}
 
-   if(last_token == NULL)
+static size_t ConfigParser_ParseValue(ConfigParser_T * parser, size_t index, CPValue_T ** value_ptr, int * error_flag);
+
+static CPToken_T * ConfigParser_GetToken(ConfigParser_T * parser, size_t index, int * error_flag)
+{
+   CPToken_T * result;
+   
+   if(index < parser->token_count)
    {
-      parser->token_root = new_token;
+      result = &parser->token_list[index];
+      if(result->type == e_CPTT_EndOfBuffer)
+      {
+         result = NULL;
+      }
    }
    else
    {
-      last_token->next = new_token;
+      result = NULL;
    }
+
+   if(result == NULL)
+   {
+      *error_flag = 1;
+      printf("Error: ConfigParser_GetToken: Unexpected End of Buffer\n");
+   }
+   return result;
 }
 
-static CPToken_T * ConfigParser_ParseValue(ConfigParser_T * parser, CPToken_T * token, CPValue_T ** value_ptr);
 
-static CPToken_T * ConfigParser_ParseObjectPair(ConfigParser_T * parser, CPToken_T * token, CPObjectPair_T * pair)
+static size_t ConfigParser_ParseObjectPair(ConfigParser_T * parser, size_t index, CPObjectPair_T * pair, int * error_flag)
 {
-   CPToken_T * out_token, * last_known_good_token;
-   last_known_good_token = token;
+   CPToken_T * token, * last_known_good_token;
    pair->value = NULL;
-   if(token != NULL && token->type == e_CPTT_String)
+   token = ConfigParser_GetToken(parser, index, error_flag);
+   last_known_good_token = token;
+   if(token->type == e_CPTT_String)
    {
       pair->key_token = token;
-      token = token->next;
-      if(token != NULL && token->type == e_CPTT_Setter)
+      index ++;
+      token = ConfigParser_GetToken(parser, index, error_flag);
+      if(token->type == e_CPTT_Setter)
       {
-         token = token->next;
-         out_token = ConfigParser_ParseValue(parser, token, &pair->value);
+         index ++;
+         index = ConfigParser_ParseValue(parser, index, &pair->value, error_flag);
       }
       else
       {
-         printf("Error: ConfigParser_ParseObjectPair: Expected ':'. Got: \"%.*s\"\n", (int)token->size, token->start);
+         printf("Error: ConfigParser_ParseObjectPair: Expected ':'. Got: \"%s\"\n", token->str);
+         *error_flag = 1;
       }
    }
    else
    {
-      printf("Error: ConfigParser_ParseObjectPair: Expected Object Key Name. Got: \"%.*s\"\n", (int)token->size, token->start);
-      out_token = NULL;
+      printf("Error: ConfigParser_ParseObjectPair: Expected Object Key Name. Got: \"%s\"\n", token->str);
+      *error_flag = 1;
    }
 
    // If we have an error, then put some valid data in
-   if(pair->value == NULL)
+   if(*error_flag == 1)
    {
       pair->key_token = last_known_good_token;
       pair->value = malloc(sizeof(CPValue_T));
       pair->value->type = e_CPVT_String;
       pair->value->data.string.token = last_known_good_token;
-      out_token = NULL;
    }
   
-   return out_token;
+   return index;
 }
 
-static CPToken_T * ConfigParser_ParseObject(ConfigParser_T * parser, CPToken_T * token, CPValueObject_T * object)
+static size_t ConfigParser_ParseObject(ConfigParser_T * parser, size_t index, CPValueObject_T * object, int * error_flag)
 {
    int done;
    size_t size;
    int seperator_satified;
-   CPToken_T * out_token;
+   CPToken_T * token;
    object->size = 0;
    size = GROW_BY;
    object->pair_list = malloc(sizeof(CPObjectPair_T) * size);
-   if(token != NULL && token->type == e_CPTT_StructBegin)
+   token = ConfigParser_GetToken(parser, index, error_flag);
+   if(token->type == e_CPTT_StructBegin)
    {
       done = 0;
       seperator_satified = 1;
-      out_token = NULL;
-      token = token->next;
-      while(done == 0 && token->next != NULL)
+      index ++;
+      while(done == 0 && index < parser->token_count)
       {
+         token = ConfigParser_GetToken(parser, index, error_flag);
          if(token->type == e_CPTT_StructEnd)
          {
             done = 1;
-            out_token = token->next;
+            index ++;
          }
          else if(seperator_satified == 1)
          {
@@ -445,16 +438,18 @@ static CPToken_T * ConfigParser_ParseObject(ConfigParser_T * parser, CPToken_T *
                object->pair_list = realloc(object->pair_list, sizeof(CPObjectPair_T) * size);
             }
 
-            token = ConfigParser_ParseObjectPair(parser, token, &object->pair_list[object->size]);
+            index = ConfigParser_ParseObjectPair(parser, index, &object->pair_list[object->size], error_flag);
             object->size ++;
-            if(token == NULL)
+
+            token = ConfigParser_GetToken(parser, index, error_flag);
+            if(*error_flag == 1)
             {
                done = 1;
             }
             else if(token->type == e_CPTT_Seperator)
             {
                seperator_satified = 1;
-               token = token->next;
+               index ++;
             }
             else
             {
@@ -463,45 +458,48 @@ static CPToken_T * ConfigParser_ParseObject(ConfigParser_T * parser, CPToken_T *
          }
          else
          {
-            printf("Error: ConfigParser_ParseObject: Expected ','. Got \"%.*s\"\n", (int)token->size, token->start);
+            printf("Error: ConfigParser_ParseObject: Expected ','. Got \"%s\"\n", token->str);
             done = 1;
-            out_token = NULL;
+            *error_flag = 1;
          }
       }
       if(done == 0)
       {
          printf("Error: ConfigParser_ParseObject: Unexpteded End of Buffer");
+         *error_flag = 1;
       }
    }
    else
    {
-      printf("Error: ConfigParser_ParserObject: Expected '{'. Got: \"%.*s\"\n", (int)token->size, token->start);
-      out_token = NULL;
+      printf("Error: ConfigParser_ParserObject: Expected '{'. Got: \"%s\"\n", token->str);
+      *error_flag = 1;
    }
-   return out_token;
+   return index;
 }
 
-static CPToken_T * ConfigParser_ParseArray(ConfigParser_T * parser, CPToken_T * token, CPValueArray_T * array)
+static size_t ConfigParser_ParseArray(ConfigParser_T * parser, size_t index, CPValueArray_T * array, int * error_flag)
 {
    int done;
    size_t size;
    int seperator_satified;
-   CPToken_T * out_token;
+   CPToken_T * token;
    array->size = 0;
    size = GROW_BY;
    array->value_list = malloc(sizeof(CPValue_T *) * size);
-   if(token != NULL && token->type == e_CPTT_ArrayBegin)
+
+   token = ConfigParser_GetToken(parser, index, error_flag);
+   if(token->type == e_CPTT_ArrayBegin)
    {
       done = 0;
       seperator_satified = 1;
-      out_token = NULL;
-      token = token->next;
-      while(done == 0 && token->next != NULL)
+      index ++;
+      while(done == 0 && index < parser->token_count)
       {
+         token = ConfigParser_GetToken(parser, index, error_flag);
          if(token->type == e_CPTT_ArrayEnd)
          {
             done = 1;
-            out_token = token->next;
+            index ++;
          }
          else if(seperator_satified == 1)
          {
@@ -512,15 +510,16 @@ static CPToken_T * ConfigParser_ParseArray(ConfigParser_T * parser, CPToken_T * 
                array->value_list = realloc(array->value_list, sizeof(CPValue_T *) * size);
             }
 
-            token = ConfigParser_ParseValue(parser, token, &array->value_list[array->size]);
+            index = ConfigParser_ParseValue(parser, index, &array->value_list[array->size], error_flag);
             array->size ++;
-            if(token == NULL)
+            token = ConfigParser_GetToken(parser, index, error_flag);
+            if(*error_flag == 1)
             {
                done = 1;
             }
             else if(token->type == e_CPTT_Seperator)
             {
-               token = token->next;
+               index ++;
                seperator_satified = 1;
             }
             else
@@ -530,72 +529,85 @@ static CPToken_T * ConfigParser_ParseArray(ConfigParser_T * parser, CPToken_T * 
          }
          else
          {
-            printf("Error: ConfigParser_ParseArray: Expected ','. Got \"%.*s\"\n", (int)token->size, token->start);
+            printf("Error: ConfigParser_ParseArray: Expected ','. Got \"%s\"\n", token->str);
             done = 1;
-            out_token = NULL;
+            *error_flag = 1;
          }
       }
       if(done == 0)
       {
          printf("Error: ConfigParser_ParseArray: Unexpteded End of Buffer");
+         *error_flag = 1;
       }
    }
    else
    {
-      printf("Error: ConfigParser_ParseArray: Expected first token to be \"[\". Instead got: \"%.*s\"\n", (int)token->size, token->start);
-      out_token = NULL;
+      printf("Error: ConfigParser_ParseArray: Expected first token to be \"[\". Instead got: \"%s\"\n", token->str);
+      *error_flag = 1;
    }
-   return out_token;
+   return index;
 }
 
-static CPToken_T * ConfigParser_ParseValue(ConfigParser_T * parser, CPToken_T * token, CPValue_T ** value_ptr)
+static size_t ConfigParser_ParseValue(ConfigParser_T * parser, size_t index, CPValue_T ** value_ptr, int *error_flag)
 {
    CPValue_T * result;
-   CPToken_T * out_token;
-   if(token != NULL && token->type == e_CPTT_String)
+   CPToken_T * token;
+   token = ConfigParser_GetToken(parser, index, error_flag);
+   if(index < parser->token_count)
    {
-      result = malloc(sizeof(CPValue_T));
-      result->type = e_CPVT_String;
-      result->data.string.token = token;
-      out_token = token->next;
-   }
-   else if(token != NULL && token->type == e_CPTT_ArrayBegin)
-   {
-      result = malloc(sizeof(CPValue_T));
-      result->type = e_CPVT_Array;
-      out_token = ConfigParser_ParseArray(parser, token, &result->data.array);
-
-   }
-   else if(token != NULL && token->type == e_CPTT_StructBegin)
-   {
-      result = malloc(sizeof(CPValue_T));
-      result->type = e_CPVT_Object;
-      out_token = ConfigParser_ParseObject(parser, token, &result->data.object);
+      if(token->type == e_CPTT_String)
+      {
+         result = malloc(sizeof(CPValue_T));
+         result->type = e_CPVT_String;
+         result->data.string.token = token;
+         index ++;
+      }
+      else if(token->type == e_CPTT_ArrayBegin)
+      {
+         result = malloc(sizeof(CPValue_T));
+         result->type = e_CPVT_Array;
+         index = ConfigParser_ParseArray(parser, index, &result->data.array, error_flag);
+      }
+      else if(token->type == e_CPTT_StructBegin)
+      {
+         result = malloc(sizeof(CPValue_T));
+         result->type = e_CPVT_Object;
+         index = ConfigParser_ParseObject(parser, index, &result->data.object, error_flag);
+      }
+      else
+      {
+         result = NULL;
+         *error_flag = 1;
+         printf("Error: ConfigParser_ParseValue: Recived Unexpteded Token \"%s\"\n", token->str);
+      }
    }
    else
    {
+      printf("Error: ConfigParser_ParseValue: Unexpted End of Buffer\n");
+      *error_flag = 1;
       result = NULL;
-      printf("Error: ConfigParser_ParseValue: Recived Unexpteded Token \"%*.s\"\n", (int)token->size, token->start);
    }
 
    (*value_ptr) = result;
 
-   return out_token;
+   return index;
 }
 
 static int ConfigParser_ParseTokens(ConfigParser_T * parser)
 {
-   CPToken_T * out;
+   size_t index;
    int result;
-   out = ConfigParser_ParseValue(parser, parser->token_root, &parser->root);
-   if(out == NULL)
+   int error_flag;
+   error_flag = 0;
+   index = ConfigParser_ParseValue(parser, 0, &parser->root, &error_flag);
+   if(error_flag == 1)
    {
       printf("An Error Occured Durring Parsing\n");
       result = 0;
    }
-   else if(out->type != e_CPTT_EndOfBuffer)
+   else if(parser->token_list[index].type != e_CPTT_EndOfBuffer)
    {
-      printf("Error: ConfigParser_ParserTokens: Expected End of Buffer. Got \"%*.s\"\n", (int)out->size, out->start);
+      printf("Error: ConfigParser_ParserTokens: Expected End of Buffer. Got \"%s\"\n", parser->token_list[index].str);
       result = 0;
    }
    else
@@ -607,14 +619,12 @@ static int ConfigParser_ParseTokens(ConfigParser_T * parser)
 
 static int ConfigParser_ParseBuffer(ConfigParser_T * parser)
 {
-   //CPToken_T * loop;
+   //size_t i;
    ConfigParser_Tokenize(parser);
 
-   //loop = parser->token_root;
-   //while(loop != NULL)
+   //for(i = 0; i < parser->token_count; i++)
    //{
-   //   printf("T: %p  \"%.*s\"\n", loop, (int)loop->size, loop->start);
-   //   loop = loop->next;
+   //   printf("T: %i  \"%s\"\n", i, parser->token_list[i].str);
    //}
    return ConfigParser_ParseTokens(parser);
 }

@@ -9,7 +9,7 @@ static void PrintValue(CPValue_T * value)
    size_t i;
    if(value->type == e_CPVT_String)
    {
-      printf("%.*s\n", (int)value->data.string.token->size, value->data.string.token->start);
+      printf("%s\n", value->data.string.token->str);
    }
    else if(value->type == e_CPVT_Array)
    {
@@ -26,7 +26,7 @@ static void PrintValue(CPValue_T * value)
       for(i = 0; i < value->data.object.size; i++)
       {
         
-         printf("%.*s :\n", (int)value->data.object.pair_list[i].key_token->size, value->data.object.pair_list[i].key_token->start);
+         printf("%s :\n", value->data.object.pair_list[i].key_token->str);
          PrintValue(value->data.object.pair_list[i].value);
       }
       printf("}\n");
@@ -151,8 +151,9 @@ static void ConfigParser_Driver(void)
 {
    int index;
    ConfigParser_T parser;
-   ConfigParser_Init(&parser);
-   ConfigParser_LoadFile(&parser, "test.txt");
+   Scanner_T scanner;
+   Scanner_InitFromFile(&scanner, "test.txt");
+   ConfigParser_Init(&parser, &scanner);
 
 
    PrintValue(parser.root);
@@ -160,14 +161,17 @@ static void ConfigParser_Driver(void)
    index = ConfigParser_GetIndexOfKey(parser.root, "other");
    printf("Index: %i\n", index);
 
+
    ConfigParser_Destory(&parser);
+   Scanner_Destroy(&scanner);
 }
 
 int main(int args, char * argc[])
 {
    //Scanner_Driver();
    //ScannerWindow_Driver();
-   StringHashTable_Driver();
+   //StringHashTable_Driver();
+   ConfigParser_Driver();
    printf("End\n");
    return 0;
 }
