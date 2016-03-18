@@ -53,7 +53,7 @@ struct CPValueString_S
 struct CPValueArray_S
 {
    size_t size;
-   CPValue_T ** value_list;
+   CPValue_T * value_list;
 };
 
 struct CPObjectPair_S

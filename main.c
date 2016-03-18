@@ -7,29 +7,36 @@
 static void PrintValue(CPValue_T * value)
 {
    size_t i;
-   if(value->type == e_CPVT_String)
+   if(value != NULL)
    {
-      printf("%s\n", value->data.string.token->str);
-   }
-   else if(value->type == e_CPVT_Array)
-   {
-      printf("[\n");
-      for(i = 0; i < value->data.array.size; i++)
+      if(value->type == e_CPVT_String)
       {
-         PrintValue(value->data.array.value_list[i]);
+         printf("%s\n", value->data.string.token->str);
       }
-      printf("]\n");
-   }
-   else if(value->type == e_CPVT_Object)
-   {
-      printf("{\n");
-      for(i = 0; i < value->data.object.size; i++)
+      else if(value->type == e_CPVT_Array)
       {
-        
-         printf("%s :\n", value->data.object.pair_list[i].key_token->str);
-         PrintValue(value->data.object.pair_list[i].value);
+         printf("[\n");
+         for(i = 0; i < value->data.array.size; i++)
+         {
+            PrintValue(&value->data.array.value_list[i]);
+         }
+         printf("]\n");
       }
-      printf("}\n");
+      else if(value->type == e_CPVT_Object)
+      {
+         printf("{\n");
+         for(i = 0; i < value->data.object.size; i++)
+         {
+
+            printf("%s :\n", value->data.object.pair_list[i].key_token->str);
+            PrintValue(value->data.object.pair_list[i].value);
+         }
+         printf("}\n");
+      }
+   }
+   else
+   {
+      printf("NULL\n");
    }
 }
 
