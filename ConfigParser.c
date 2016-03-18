@@ -10,6 +10,7 @@ struct ParserData_S
 {
    int error;
    size_t index;
+   CPToken_T * last;
 };
 
 #define GROW_BY 16
@@ -344,12 +345,25 @@ static void ConfigParser_Tokenize(ConfigParser_T * parser)
 
    token.type = e_CPTT_EndOfBuffer;
    token.str  = NULL;
-   token.line = 0;
-   token.col  = 0;
+   token.line = schar.line;
+   token.col  = schar.col;
    ConfigParser_AddToken(parser, &token);
 }
 
 static int ConfigParser_ParseValue(ConfigParser_T * parser, ParserData_T * data, CPValue_T * value);
+
+static void ConfigParser_ParserError(ParserData_T * data, const char * func, const char * message)
+{
+   data->error ++;
+   if(data->last->type == e_CPTT_EndOfBuffer)
+   {
+      printf("Error (%i, %i): %s: %s Found End of Buffer\n", data->last->line, data->last->col, func, message);
+   }
+   else
+   {
+      printf("Error (%i, %i): %s: %s Found \"%s\"\n", data->last->line, data->last->col, func, message, data->last->str);
+   }
+}
 
 static CPToken_T * ConfigParser_GetToken(ConfigParser_T * parser, ParserData_T * data)
 {
@@ -363,6 +377,7 @@ static CPToken_T * ConfigParser_GetToken(ConfigParser_T * parser, ParserData_T *
    {
       result = NULL;
    }
+   data->last = result;
    return result;
 }
 
@@ -420,16 +435,14 @@ static int ConfigParser_ParseObjectPair(ConfigParser_T * parser, ParserData_T * 
          }
          else
          {
-            data->error ++;
             pair->value = NULL;
-            printf("Error: ConfigParser_ParserObjectPair: Ecpected Value\n");
+            ConfigParser_ParserError(data, "ConfigParser_ParserObjectPair", "Expected Value");
          }
       }
       else
       {
-         data->error ++;
          pair->value = NULL;
-         printf("Error: ConfigParser_ParseObjectPair: Expected ':'.\n");
+         ConfigParser_ParserError(data, "ConfigParser_ParserObjectPair", "Expected ':'");
       }
    }
    else
@@ -480,8 +493,7 @@ static int ConfigParser_ParseObject(ConfigParser_T * parser, ParserData_T * data
                else if(!ConfigParser_ParseBasicToken(parser, data, e_CPTT_Seperator))
                {
                   done = 1;
-                  data->error ++;
-                  printf("Error: ConfigParser_ParseObject: Expected ','\n");
+                  ConfigParser_ParserError(data, "ConfigParser_ParserObject", "Expected ','");
                }
             }
             else
@@ -491,8 +503,7 @@ static int ConfigParser_ParseObject(ConfigParser_T * parser, ParserData_T * data
          }
          else
          {
-            printf("Error: ConfigParser_ParseObject: Expected Object Pair\n");
-            data->error ++;
+            ConfigParser_ParserError(data, "ConfigParser_ParserObject", "Expected Object Pair");
             done = 1;
          }
 
@@ -548,9 +559,7 @@ static int ConfigParser_ParseArray(ConfigParser_T * parser, ParserData_T * data,
                else if(!ConfigParser_ParseBasicToken(parser, data, e_CPTT_Seperator))
                {
                   done = 1;
-                  data->error ++;
-                  printf("Error: ConfigParser_ParseArray: Expected ','.\n");
-
+                  ConfigParser_ParserError(data, "ConfigParser_ParserArray", "Expected ','");
                }
 
             }
@@ -561,9 +570,8 @@ static int ConfigParser_ParseArray(ConfigParser_T * parser, ParserData_T * data,
          }
          else
          {
-            printf("Error: ConfigParser_ParseArray: Expected Value\n");
+            ConfigParser_ParserError(data, "ConfigParser_ParserArray", "Expected Value");
             done = 1;
-            data->error ++;
          }
       }
    }
@@ -625,6 +633,7 @@ static int ConfigParser_ParseTokens(ConfigParser_T * parser)
    CPValue_T value;
    data.error = 0;
    data.index = 0;
+   data.last = NULL;
    if(ConfigParser_ParseValue(parser, &data, &value))
    {
       parser->root = malloc(sizeof(CPValue_T));
@@ -638,8 +647,7 @@ static int ConfigParser_ParseTokens(ConfigParser_T * parser)
          else
          {
             result = 0;
-            data.error ++;
-            printf("Error: ConfigParser_ParserTokens: Expected End of Buffer. Got \"%s\"\n", parser->token_list[data.index].str);
+            ConfigParser_ParserError(&data, "ConfigParser_ParserTokens", "Expected End of Buffer");
          }
       }
       else
@@ -651,8 +659,7 @@ static int ConfigParser_ParseTokens(ConfigParser_T * parser)
    else 
    {
       result = 0;
-      data.error ++;
-      printf("Error: ConfigParser_ParseRokens: Expected Value\n");
+      ConfigParser_ParserError(&data, "ConfigParser_ParserTokens", "Expected Value");
    }
    return result;
 }
@@ -664,7 +671,7 @@ static int ConfigParser_ParseBuffer(ConfigParser_T * parser)
 
    //for(i = 0; i < parser->token_count; i++)
    //{
-   //   printf("T: %i  \"%s\"\n", i, parser->token_list[i].str);
+   //   printf("T: %p  (%i, %i) \"%s\"\n", &parser->token_list[i], parser->token_list[i].line, parser->token_list[i].col, parser->token_list[i].str);
    //}
    return ConfigParser_ParseTokens(parser);
 }

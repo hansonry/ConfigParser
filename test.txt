@@ -3,7 +3,7 @@
    job   : supervizor,
    tasks : [ add, subract ],
    other : { happyness: small, paycheck: large },
-   sdfds :  dsdd}
+   sdfds :  dsdd }
 
 
 
