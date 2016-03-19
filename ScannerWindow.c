@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "ScannerWindow.h"
 
 #define GROW_BY  16
