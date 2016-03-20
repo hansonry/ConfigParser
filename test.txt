@@ -1,9 +1,10 @@
 {
    name  : bob,
-   job   : supervizor,
+   job   : "su pervizor",
    tasks : [ add, subract ],
    other : { happyness: small, paycheck: large },
-   sdfds :  dsdd }
+   sdfds :  dsdd,
+   }
 
 
 

@@ -460,6 +460,7 @@ static int ConfigParser_ParseObject(ConfigParser_T * parser, ParserData_T * data
    int done;
    size_t size;
    int last_error;
+   int comma_satified;
    CPToken_T * token;
    CPObjectPair_T pair;
    object->size = 0;
@@ -469,41 +470,53 @@ static int ConfigParser_ParseObject(ConfigParser_T * parser, ParserData_T * data
    {
       is_object = 1;
       done = 0;
+      comma_satified = 1;
       while(done == 0)
       {
-         last_error = data->error;
-         if(ConfigParser_ParseObjectPair(parser, data, &pair))
+         if(ConfigParser_ParseBasicToken(parser, data, e_CPTT_StructEnd))
          {
-            // Grow if nessary
-            if(object->size >= size)
+            done = 1;
+         }
+         else if(comma_satified == 1)
+         {
+            last_error = data->error;
+            if(ConfigParser_ParseObjectPair(parser, data, &pair))
             {
-               size = size + GROW_BY;
-               object->pair_list = realloc(object->pair_list, sizeof(CPObjectPair_T) * size);
-            }
-            memcpy(&object->pair_list[object->size], &pair, sizeof(CPObjectPair_T));
-            object->size ++;
-
-            if(last_error == data->error) // No error
-            {
-
-               if(ConfigParser_ParseBasicToken(parser, data, e_CPTT_StructEnd))
+               // Grow if nessary
+               if(object->size >= size)
                {
-                  done = 1;
+                  size = size + GROW_BY;
+                  object->pair_list = realloc(object->pair_list, sizeof(CPObjectPair_T) * size);
                }
-               else if(!ConfigParser_ParseBasicToken(parser, data, e_CPTT_Seperator))
+               memcpy(&object->pair_list[object->size], &pair, sizeof(CPObjectPair_T));
+               object->size ++;
+
+               if(last_error == data->error) // No error
+               {
+
+                  if(ConfigParser_ParseBasicToken(parser, data, e_CPTT_Seperator))
+                  {
+                     comma_satified = 1;
+                  }
+                  else
+                  {
+                     comma_satified = 0;
+                  }
+               }
+               else
                {
                   done = 1;
-                  ConfigParser_ParserError(data, "ConfigParser_ParserObject", "Expected ','");
                }
             }
             else
             {
                done = 1;
+               ConfigParser_ParserError(data, "ConfigParser_ParserObject", "Expected ','");
             }
          }
          else
          {
-            ConfigParser_ParserError(data, "ConfigParser_ParserObject", "Expected Object Pair");
+            ConfigParser_ParserError(data, "ConfigParser_ParserObject", "Expected ',' or '}'");
             done = 1;
          }
 
@@ -525,6 +538,7 @@ static int ConfigParser_ParseArray(ConfigParser_T * parser, ParserData_T * data,
    int is_array;
    size_t size;
    int last_error;
+   int comma_satified;
    CPValue_T value;
    array->size = 0;
    size = GROW_BY;
@@ -534,44 +548,54 @@ static int ConfigParser_ParseArray(ConfigParser_T * parser, ParserData_T * data,
    {
       is_array = 1;
       done = 0;
+      comma_satified = 1;
       while(done == 0)
       {
-         last_error = data->error;
-         if(ConfigParser_ParseValue(parser, data, &value))
+         if(ConfigParser_ParseBasicToken(parser, data, e_CPTT_ArrayEnd))
          {
-            // Grow if nessary
-            if(array->size >= size)
+            done = 1;
+         }
+         else if(comma_satified == 1)
+         {
+            last_error = data->error;
+            if(ConfigParser_ParseValue(parser, data, &value))
             {
-               size = size + GROW_BY;
-               array->value_list = realloc(array->value_list, sizeof(CPValue_T) * size);
-            }
-            memcpy(&array->value_list[array->size], &value, sizeof(CPValue_T));
-            array->size ++;
+               // Grow if nessary
+               if(array->size >= size)
+               {
+                  size = size + GROW_BY;
+                  array->value_list = realloc(array->value_list, sizeof(CPValue_T) * size);
+               }
+               memcpy(&array->value_list[array->size], &value, sizeof(CPValue_T));
+               array->size ++;
 
-            if(last_error == data->error) // No errors
-            {
+               if(last_error == data->error) // No errors
+               {
+                  if(ConfigParser_ParseBasicToken(parser, data, e_CPTT_Seperator))
+                  {
+                     comma_satified = 1;
+                  }
+                  else
+                  {
+                     comma_satified = 0;
+                  }
 
-
-               if(ConfigParser_ParseBasicToken(parser, data, e_CPTT_ArrayEnd))
+               }
+               else
                {
                   done = 1;
                }
-               else if(!ConfigParser_ParseBasicToken(parser, data, e_CPTT_Seperator))
-               {
-                  done = 1;
-                  ConfigParser_ParserError(data, "ConfigParser_ParserArray", "Expected ','");
-               }
-
             }
             else
             {
+               ConfigParser_ParserError(data, "ConfigParser_ParseArray", "Expected Value");
                done = 1;
             }
          }
          else
          {
-            ConfigParser_ParserError(data, "ConfigParser_ParserArray", "Expected Value");
             done = 1;
+            ConfigParser_ParserError(data, "ConfigParser_ParseArray", "Expected ',' or '}'");
          }
       }
    }
