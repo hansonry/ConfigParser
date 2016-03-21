@@ -38,7 +38,7 @@ void Scanner_InitFromFile(Scanner_T * scanner, const char * filename)
 
    if(scanner->file == NULL)
    {
-      printf("Error: Scanner_InitFromFile: Cant Open File: \"%s\"\n", filename);
+      fprintf(stderr, "Error: Scanner_InitFromFile: Cant Open File: \"%s\"\n", filename);
    }
 }
 

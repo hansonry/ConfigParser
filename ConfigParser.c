@@ -357,11 +357,11 @@ static void ConfigParser_ParserError(ParserData_T * data, const char * func, con
    data->error ++;
    if(data->last->type == e_CPTT_EndOfBuffer)
    {
-      printf("Error (%i, %i): %s: %s Found End of Buffer\n", data->last->line, data->last->col, func, message);
+      fprintf(stderr, "Error (%i, %i): %s: %s Found End of Buffer\n", data->last->line, data->last->col, func, message);
    }
    else
    {
-      printf("Error (%i, %i): %s: %s Found \"%s\"\n", data->last->line, data->last->col, func, message, data->last->str);
+      fprintf(stderr, "Error (%i, %i): %s: %s Found \"%s\"\n", data->last->line, data->last->col, func, message, data->last->str);
    }
 }
 
